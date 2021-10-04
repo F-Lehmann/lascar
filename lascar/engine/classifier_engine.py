@@ -49,6 +49,7 @@ class ProfileEngine(PartitionerEngine):
         test_size=0.1,
         verbose=1,
         batch_size=128,
+        callbacks=[],
     ):
         """
 
@@ -60,9 +61,10 @@ class ProfileEngine(PartitionerEngine):
         :param test_size: only used when using keras model, will be passed to the keras .fit() method
         :param verbose: only used when using keras model, will be passed to the keras .fit() method
         :param batch_size: only used when using keras model, will be passed to the keras .fit() method
+        :param callbacks: only used when using keras model, will be passed to the keras .fit() method
         """
 
-        import keras
+        import tensorflow.keras as keras
         import sklearn
 
         if not isinstance(classifier, sklearn.base.ClassifierMixin) and not (
@@ -85,6 +87,7 @@ class ProfileEngine(PartitionerEngine):
         self.epochs = epochs
         self.verbose = verbose
         self.batch_size = batch_size
+        self.callbacks = callbacks
 
     def _initialize(self):
 
@@ -124,6 +127,7 @@ class ProfileEngine(PartitionerEngine):
             epochs=self.epochs,
             verbose=self.verbose,
             validation_data=(X_test, Y_test),
+            callbacks=self.callbacks
         )
 
         self.score_train = self._classifier.evaluate(X_train, Y_train)
@@ -174,8 +178,9 @@ class MatchEngine(GuessEngine):
 
         if hasattr(self._classifier, "predict_log_proba"):
             log_probas = self._classifier.predict_log_proba(batch.leakages)
-        elif hasattr(self._classifier, "predict_proba"):
-            log_probas = np.log2(self._classifier.predict_proba(batch.leakages))
+        # Has been deprecated in keras
+        #elif hasattr(self._classifier, "predict_proba"):
+        #    log_probas = np.log2(self._classifier.predict_proba(batch.leakages))
         elif hasattr(self._classifier, "predict"):
             log_probas = np.log2(self._classifier.predict(batch.leakages))
         else:
