@@ -111,7 +111,7 @@ class ProfileEngine(PartitionerEngine):
         self._classifier.fit(batch.leakages, partition_values)
 
     def _update_keras_model(self, batch):
-        from keras.utils import to_categorical
+        from tensorflow.keras.utils import to_categorical
 
         Y = to_categorical(
             list(map(self._partition_function, batch.values)), self._partition_size
