@@ -17,6 +17,7 @@
 # Copyright 2018 Manuel San Pedro, Victor Servant, Charles Guillemet, Ledger SAS - manuel.sanpedro@ledger.fr, victor.servant@ledger.fr, charles@ledger.fr
 
 import pickle
+from tensorflow.keras.utils import Sequence
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -24,6 +25,39 @@ from sklearn.model_selection import train_test_split
 from . import GuessEngine
 from . import PartitionerEngine
 
+
+class DataGenerator(Sequence):
+    """Generates data for Keras
+    Sequence based data generator. Suitable for building data generator for training and prediction.
+    """
+
+    def __init__(self, X, Y, batch_size=1000):
+        """Initialization
+        :param X: input data
+        :param Y: output data
+        :param batch_size: batch size at each iteration
+        :param shuffle: True to shuffle label indexes after every epoch
+        """
+        self.X = X
+        self.Y = Y
+        self.batch_size = batch_size
+
+    def __len__(self):
+        """Denotes the number of batches per epoch
+        :return: number of batches per epoch
+        """
+        return int(np.floor(len(self.X) / self.batch_size))
+
+    def __getitem__(self, index):
+        """Generate one batch of data
+        :param index: index of the batch
+        :return: X and Y
+        """
+
+        # Generate data
+        X = self.X[index * self.batch_size: (index + 1) * self.batch_size]
+        Y = self.Y[index * self.batch_size: (index + 1) * self.batch_size]
+        return X, Y
 
 class ProfileEngine(PartitionerEngine):
     """
@@ -119,19 +153,20 @@ class ProfileEngine(PartitionerEngine):
         X_train, X_test, Y_train, Y_test = train_test_split(
             batch.leakages, Y, test_size=self.test_size
         )
+        
+        train_generator = DataGenerator(X_train, Y_train, batch_size=self.batch_size)
+        test_generator = DataGenerator(X_test, Y_test, batch_size=self.batch_size)
 
         self.history = self._classifier.fit(
-            X_train,
-            Y_train,
-            batch_size=self.batch_size,
+            train_generator,
             epochs=self.epochs,
             verbose=self.verbose,
-            validation_data=(X_test, Y_test),
+            validation_data=test_generator,
             callbacks=self.callbacks
         )
 
-        self.score_train = self._classifier.evaluate(X_train, Y_train)
-        self.score_test = self._classifier.evaluate(X_test, Y_test)
+        self.score_train = self._classifier.evaluate(train_generator)
+        self.score_test = self._classifier.evaluate(test_generator)
 
     def _finalize(self):
         return self._classifier
@@ -158,7 +193,8 @@ class MatchEngine(GuessEngine):
         :param solution:
         """
 
-        GuessEngine.__init__(self, name, selection_function, guess_range, solution)
+        GuessEngine.__init__(
+            self, name, selection_function, guess_range, solution)
         self._classifier = classifier
         self.output_parser_mode = "max"
 
@@ -179,7 +215,7 @@ class MatchEngine(GuessEngine):
         if hasattr(self._classifier, "predict_log_proba"):
             log_probas = self._classifier.predict_log_proba(batch.leakages)
         # Has been deprecated in keras
-        #elif hasattr(self._classifier, "predict_proba"):
+        # elif hasattr(self._classifier, "predict_proba"):
         #    log_probas = np.log2(self._classifier.predict_proba(batch.leakages))
         elif hasattr(self._classifier, "predict"):
             log_probas = np.log2(self._classifier.predict(batch.leakages))
@@ -209,7 +245,8 @@ def save_classifier(classifier, filename):
     except e:
         pass
 
-    raise ValueError("Classifier cant be saved %s %s." % (classifier, filename))
+    raise ValueError("Classifier cant be saved %s %s." %
+                     (classifier, filename))
 
 
 def load_classifier(filename):
